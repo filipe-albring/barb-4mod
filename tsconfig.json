@@ -1,14 +1,8 @@
 {
-  "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["DOM", "ES2020"],
-    "strict": true,
-    "noEmitOnError": true,
-    "rootDir": "public/src",
-    "outDir": "public/dist",
-    "skipLibCheck": true,
-    "module": "ES2020",
-    "moduleResolution": "Bundler"
-  },
-  "include": ["public/src/**/*.ts"]
+  "files": [],
+  "references": [
+    { "path": "./packages/contracts" },
+    { "path": "./apps/api" },
+    { "path": "./apps/web" }
+  ]
 }

@@ -1,0 +1,2 @@
+ALTER TABLE "appointment_services" ADD CONSTRAINT "appointment_services_unit_price_nonnegative" CHECK ("appointment_services"."unit_price" >= 0);--> statement-breakpoint
+ALTER TABLE "services" ADD CONSTRAINT "services_price_nonnegative" CHECK ("services"."price" >= 0);

@@ -1,11 +1,14 @@
 {
-  "name": "barbearia-prime-dashboard",
+  "name": "barbearia-prime",
   "private": true,
+  "workspaces": ["apps/api", "apps/web", "packages/contracts"],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "check": "tsc -p tsconfig.json --noEmit"
+    "dev:api": "npm run dev --workspace @barbearia/api",
+    "dev:web": "npm run dev --workspace @barbearia/web",
+    "build": "npm run build --workspace @barbearia/api && npm run build --workspace @barbearia/web",
+    "typecheck": "npm run typecheck --workspace @barbearia/contracts && npm run typecheck --workspace @barbearia/api && npm run typecheck --workspace @barbearia/web"
   },
-  "devDependencies": {
-    "typescript": "^5.7.3"
+  "overrides": {
+    "postcss": "8.5.23"
   }
 }

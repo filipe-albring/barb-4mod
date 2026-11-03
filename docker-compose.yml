@@ -1,0 +1,62 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-barbearia}
+      POSTGRES_USER: ${POSTGRES_USER:-barbearia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-barbearia_dev}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-barbearia} -d ${POSTGRES_DB:-barbearia}"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      API_PORT: 3333
+      API_HOST: 0.0.0.0
+      DATABASE_URL: postgres://${POSTGRES_USER:-barbearia}:${POSTGRES_PASSWORD:-barbearia_dev}@postgres:5432/${POSTGRES_DB:-barbearia}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-local-only-change-this-secret-before-deploying-1234567890}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_CPF: ${SEED_ADMIN_CPF:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+    ports:
+      - "3333:3333"
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3333}
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
+      - /workspace/apps/web/.next
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
