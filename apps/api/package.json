@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:ensure-product-reservations": "tsx src/db/ensure-product-reservation-schema.ts",
+    "db:normalize-text": "tsx src/db/normalize-text-encoding.ts",
     "seed:admin": "tsx src/db/seed-admin.ts"
   },
   "dependencies": {
@@ -22,6 +24,7 @@
     "drizzle-orm": "^0.45.4",
     "fastify": "^5.6.2",
     "fastify-type-provider-zod": "^5.0.2",
+    "mysql2": "^3.24.6",
     "pg": "^8.16.3",
     "zod": "^4.6.7"
   },

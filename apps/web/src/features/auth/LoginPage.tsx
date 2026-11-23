@@ -1,14 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LoginSchema } from '@barbearia/contracts';
+import { EMAIL_REGEX, LoginSchema } from '@barbearia/contracts';
 import type { LoginInput } from '@barbearia/contracts';
 import { errorMessage, login } from './api';
 import { useAuth } from './AuthProvider';
+import { Alert, Button, Input } from '../../components/ui';
 
-interface LocationNotice { state: { notice?: string } | null; }
+interface LocationNotice {
+    state: { notice?: string } | null;
+}
 
 export default function LoginPage(): React.JSX.Element {
     const [email, setEmail] = useState('');
@@ -22,6 +25,13 @@ export default function LoginPage(): React.JSX.Element {
     async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
         event.preventDefault();
         setMessage('');
+
+        // Validação explícita por regex no frontend
+        if (!EMAIL_REGEX.test(email.trim())) {
+            setMessage('Informe um e-mail válido no formato exemplo@dominio.com.');
+            return;
+        }
+
         const input = LoginSchema.safeParse({ email, password });
         if (!input.success) {
             setMessage(input.error.issues[0]?.message ?? 'Confira os dados informados.');
@@ -44,15 +54,45 @@ export default function LoginPage(): React.JSX.Element {
         <main className="auth-card">
             <span className="eyebrow">Acesso seguro</span>
             <h1>Entrar</h1>
-            <p className="sub">Clientes consultam seus próprios dados. A equipe acessa a gestão da barbearia.</p>
-            {location.state?.notice && <div className="notice" role="status">{location.state.notice}</div>}
-            {message && <div className="notice error" role="alert">{message}</div>}
+            <p className="sub">Clientes agendam e consultam seus horários. A equipe gerencia a barbearia.</p>
+
+            {location.state?.notice && <Alert variant="info">{location.state.notice}</Alert>}
+            {message && <Alert variant="error">{message}</Alert>}
+
             <form onSubmit={(event) => void submit(event)}>
-                <div className="field"><label htmlFor="email">E-mail</label><input id="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></div>
-                <div className="field"><label htmlFor="password">Senha</label><input id="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></div>
-                <div className="form-actions"><button className="button" type="submit" disabled={busy}>{busy ? 'Entrando...' : 'Entrar'}</button></div>
+                <Input
+                    label="E-mail"
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="seu.email@exemplo.com"
+                    required
+                />
+
+                <Input
+                    label="Senha"
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Digite sua senha"
+                    required
+                />
+
+                <div className="form-actions">
+                    <Button type="submit" isLoading={busy} style={{ width: '100%' }}>
+                        Entrar
+                    </Button>
+                </div>
             </form>
-            <p className="form-foot">Ainda não tem conta? <Link to="/cadastro">Cadastrar-se</Link></p>
+            <p className="form-foot">
+                Ainda não tem conta? <Link to="/cadastro">Cadastrar-se</Link>
+            </p>
         </main>
     );
 }

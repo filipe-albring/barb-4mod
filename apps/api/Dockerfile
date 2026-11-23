@@ -10,4 +10,4 @@ COPY apps/api ./apps/api
 COPY apps/web ./apps/web
 WORKDIR /workspace/apps/api
 EXPOSE 3333
-CMD ["sh", "-c", "npm run db:migrate && npm run seed:admin && npm run dev"]
+CMD ["sh", "-c", "npm run db:ensure-product-reservations && npm run db:normalize-text && npm run seed:admin && npm run dev"]

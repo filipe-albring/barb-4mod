@@ -1,18 +1,27 @@
 'use client';
 
-import { useState } from 'react';
-import type { FormEvent, JSX } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Link } from 'react-router-dom';
-import { RegisterSchema } from '@barbearia/contracts';
+import React, { useState } from 'react';
+import type { FormEvent } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { EMAIL_REGEX, RegisterSchema } from '@barbearia/contracts';
 import type { RegisterInput } from '@barbearia/contracts';
 import { errorMessage, registerCustomer, registerEmployee } from './api';
+import { Alert, Button, Input } from '../../components/ui';
 
-interface RegistrationFormProps { employee?: boolean; }
+interface RegistrationFormProps {
+    employee?: boolean;
+}
+
 type FieldName = 'name' | 'email' | 'cpf' | 'password' | 'confirmPassword';
 type FormValues = Record<FieldName, string>;
 
-const initialValues: FormValues = { name: '', email: '', cpf: '', password: '', confirmPassword: '' };
+const initialValues: FormValues = {
+    name: '',
+    email: '',
+    cpf: '',
+    password: '',
+    confirmPassword: '',
+};
 
 function formatarCpf(value: string): string {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -35,10 +44,29 @@ export default function RegistrationForm({ employee = false }: RegistrationFormP
         setErrors((current) => ({ ...current, [field]: undefined }));
     }
 
+    const validatePasswordLevel = (pass: string) => {
+        return {
+            length: pass.length >= 12,
+            lower: /[a-z]/.test(pass),
+            upper: /[A-Z]/.test(pass),
+            number: /[0-9]/.test(pass),
+            special: /[^A-Za-z0-9]/.test(pass),
+        };
+    };
+
+    const passCheck = validatePasswordLevel(values.password);
+
     async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
         event.preventDefault();
         setMessage('');
         setMessageIsError(false);
+
+        const nextErrors: Partial<Record<FieldName, string>> = {};
+
+        // Validação explícita de e-mail via Regex
+        if (!EMAIL_REGEX.test(values.email.trim())) {
+            nextErrors.email = 'Informe um e-mail válido (ex: cliente@exemplo.com).';
+        }
 
         const parsed = RegisterSchema.safeParse({
             name: values.name,
@@ -46,18 +74,22 @@ export default function RegistrationForm({ employee = false }: RegistrationFormP
             cpf: values.cpf,
             password: values.password,
         });
-        const nextErrors: Partial<Record<FieldName, string>> = {};
 
         if (!parsed.success) {
             parsed.error.issues.forEach((issue) => {
                 const field = issue.path[0];
-                if (typeof field === 'string' && field in values) nextErrors[field as FieldName] = issue.message;
+                if (typeof field === 'string' && field in values) {
+                    nextErrors[field as FieldName] = issue.message;
+                }
             });
         }
-        if (values.confirmPassword !== values.password) nextErrors.confirmPassword = 'As senhas precisam ser iguais.';
-        setErrors(nextErrors);
 
-        if (!parsed.success || Object.keys(nextErrors).length > 0) return;
+        if (values.confirmPassword !== values.password) {
+            nextErrors.confirmPassword = 'As senhas informadas precisam ser idênticas.';
+        }
+
+        setErrors(nextErrors);
+        if (Object.keys(nextErrors).length > 0 || !parsed.success) return;
 
         setIsSubmitting(true);
         try {
@@ -65,10 +97,13 @@ export default function RegistrationForm({ employee = false }: RegistrationFormP
             if (employee) {
                 await registerEmployee(input);
                 setValues(initialValues);
-                setMessage('Funcionário cadastrado. Ele já pode entrar com o e-mail e a senha definidos.');
+                setMessage('Novo funcionário cadastrado com sucesso.');
             } else {
                 await registerCustomer(input);
-                navigate('/login', { replace: true, state: { notice: 'Cadastro concluído. Entre na sua conta para continuar.' } });
+                navigate('/login', {
+                    replace: true,
+                    state: { notice: 'Cadastro concluído com sucesso! Entre na sua conta para agendar.' },
+                });
             }
         } catch (error: unknown) {
             setMessage(errorMessage(error));
@@ -78,42 +113,113 @@ export default function RegistrationForm({ employee = false }: RegistrationFormP
         }
     }
 
-    const field = (name: FieldName, label: string, type = 'text', autocomplete?: string): JSX.Element => (
-        <div className="field" key={name}>
-            <label htmlFor={name}>{label}</label>
-            <input
-                id={name}
-                name={name}
-                type={type}
-                autoComplete={autocomplete}
-                value={name === 'cpf' ? formatarCpf(values[name]) : values[name]}
-                maxLength={name === 'cpf' ? 14 : undefined}
-                onChange={(event) => change(name, event.target.value)}
-                aria-invalid={Boolean(errors[name])}
-                aria-describedby={errors[name] ? `${name}-error` : undefined}
-                required
-            />
-            {errors[name] && <span className="field-error" id={`${name}-error`}>{errors[name]}</span>}
-        </div>
-    );
-
     return (
         <main className="auth-card">
             <span className="eyebrow">Barbearia Prime</span>
-            <h1>{employee ? 'Cadastrar funcionário' : 'Criar conta de cliente'}</h1>
-            <p className="sub">{employee ? 'Adicione uma pessoa da equipe ao painel.' : 'Cadastre-se para acompanhar seus próprios dados e horários.'}</p>
-            {message && <div className={`notice${messageIsError ? ' error' : ''}`} role={messageIsError ? 'alert' : 'status'}>{message}</div>}
+            <h1>{employee ? 'Cadastrar Funcionário' : 'Criar Conta de Cliente'}</h1>
+            <p className="sub">
+                {employee
+                    ? 'Adicione um membro da equipe com perfil de acesso ao painel.'
+                    : 'Cadastre-se para agendar cortes e acompanhar seus horários.'}
+            </p>
+
+            {message && (
+                <Alert variant={messageIsError ? 'error' : 'success'}>
+                    {message}
+                </Alert>
+            )}
 
             <form onSubmit={(event) => void submit(event)} noValidate>
-                {field('name', 'Nome completo', 'text', 'name')}
-                {field('email', 'E-mail', 'email', 'email')}
-                {field('cpf', 'CPF', 'text', 'off')}
-                {field('password', 'Senha', 'password', 'new-password')}
-                <p className="hint">Mínimo de 12 caracteres, com maiúscula, minúscula, número e símbolo.</p>
-                {field('confirmPassword', 'Confirme a senha', 'password', 'new-password')}
-                <div className="form-actions"><button className="button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Salvando...' : 'Cadastrar'}</button></div>
+                <Input
+                    label="Nome Completo"
+                    name="name"
+                    autoComplete="name"
+                    value={values.name}
+                    onChange={(e) => change('name', e.target.value)}
+                    error={errors.name}
+                    placeholder="Ex: João da Silva"
+                    required
+                />
+
+                <Input
+                    label="E-mail"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    value={values.email}
+                    onChange={(e) => change('email', e.target.value)}
+                    error={errors.email}
+                    placeholder="exemplo@dominio.com"
+                    required
+                />
+
+                <Input
+                    label="CPF"
+                    name="cpf"
+                    maxLength={14}
+                    value={formatarCpf(values.cpf)}
+                    onChange={(e) => change('cpf', e.target.value)}
+                    error={errors.cpf}
+                    placeholder="000.000.000-00"
+                    required
+                />
+
+                <Input
+                    label="Senha"
+                    name="password"
+                    type="password"
+                    autoComplete="new-password"
+                    value={values.password}
+                    onChange={(e) => change('password', e.target.value)}
+                    error={errors.password}
+                    placeholder="Mínimo de 12 caracteres"
+                    required
+                />
+
+                {values.password && (
+                    <div className="password-checklist">
+                        <span className={passCheck.length ? 'checked' : 'unchecked'}>
+                            {passCheck.length ? '✔' : '✖'} Mínimo 12 caracteres
+                        </span>
+                        <span className={passCheck.upper ? 'checked' : 'unchecked'}>
+                            {passCheck.upper ? '✔' : '✖'} Letra maiúscula
+                        </span>
+                        <span className={passCheck.lower ? 'checked' : 'unchecked'}>
+                            {passCheck.lower ? '✔' : '✖'} Letra minúscula
+                        </span>
+                        <span className={passCheck.number ? 'checked' : 'unchecked'}>
+                            {passCheck.number ? '✔' : '✖'} Número
+                        </span>
+                        <span className={passCheck.special ? 'checked' : 'unchecked'}>
+                            {passCheck.special ? '✔' : '✖'} Símbolo (!@#$...)
+                        </span>
+                    </div>
+                )}
+
+                <Input
+                    label="Confirme a Senha"
+                    name="confirmPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    value={values.confirmPassword}
+                    onChange={(e) => change('confirmPassword', e.target.value)}
+                    error={errors.confirmPassword}
+                    placeholder="Repita a senha"
+                    required
+                />
+
+                <div className="form-actions">
+                    <Button type="submit" isLoading={isSubmitting} style={{ width: '100%' }}>
+                        {employee ? 'Salvar Funcionário' : 'Criar Minha Conta'}
+                    </Button>
+                </div>
             </form>
-            {!employee && <p className="form-foot">Já possui conta? <Link to="/login">Entrar</Link></p>}
+
+            {!employee && (
+                <p className="form-foot">
+                    Já possui conta? <Link to="/login">Entrar</Link>
+                </p>
+            )}
         </main>
     );
 }

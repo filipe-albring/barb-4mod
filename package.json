@@ -1,7 +1,11 @@
 {
   "name": "barbearia-prime",
   "private": true,
-  "workspaces": ["apps/api", "apps/web", "packages/contracts"],
+  "workspaces": [
+    "apps/api",
+    "apps/web",
+    "packages/contracts"
+  ],
   "scripts": {
     "dev:api": "npm run dev --workspace @barbearia/api",
     "dev:web": "npm run dev --workspace @barbearia/web",
@@ -10,5 +14,8 @@
   },
   "overrides": {
     "postcss": "8.5.23"
+  },
+  "dependencies": {
+    "next": "^16.4.5"
   }
 }

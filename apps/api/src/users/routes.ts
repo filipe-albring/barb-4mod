@@ -1,36 +1,46 @@
-import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
-import { db } from '../db/client.js';
-import { appointments, users } from '../db/schema.js';
+import { UpdateUserSchema } from '@barbearia/contracts';
 import { authenticate, requireRoles } from '../auth/security.js';
+import { UserService } from '../services/UserService.js';
+import { AppointmentService } from '../services/AppointmentService.js';
 
 export async function registerUserRoutes(app: FastifyInstance): Promise<void> {
+    const userService = new UserService();
+    const appointmentService = new AppointmentService();
+
     app.get('/users/me', {
         preHandler: authenticate,
-        schema: { tags: ['Usuários'], summary: 'Retorna somente o perfil do usuário autenticado', security: [{ bearerAuth: [] }] },
-    }, async (request, reply) => {
-        const [user] = await db.select({
-            id: users.id,
-            name: users.name,
-            email: users.email,
-            cpf: users.cpf,
-            role: users.role,
-            createdAt: users.createdAt,
-        }).from(users).where(eq(users.id, request.user.sub)).limit(1);
+        schema: {
+            tags: ['Usuários'],
+            summary: 'Retorna o perfil do próprio usuário autenticado',
+            security: [{ bearerAuth: [] }],
+        },
+    }, async (request) => {
+        return userService.getProfile(request.user.sub);
+    });
 
-        if (!user) return reply.code(404).send({ message: 'Usuário não encontrado.' });
-        return user;
+    app.put('/users/me', {
+        preHandler: authenticate,
+        schema: {
+            tags: ['Usuários'],
+            summary: 'Edição do próprio usuário (todos os campos obrigatórios, bloqueio de alteração de e-mail)',
+            security: [{ bearerAuth: [] }],
+            body: UpdateUserSchema,
+        },
+    }, async (request) => {
+        const input = UpdateUserSchema.parse(request.body);
+        return userService.updateProfile(request.user.sub, input);
     });
 
     app.get('/users/me/appointments', {
         preHandler: requireRoles('CUSTOMER'),
-        schema: { tags: ['Usuários'], summary: 'Lista apenas os agendamentos do cliente autenticado', security: [{ bearerAuth: [] }] },
+        schema: {
+            tags: ['Usuários'],
+            summary: 'Lista apenas os agendamentos do cliente autenticado',
+            security: [{ bearerAuth: [] }],
+        },
     }, async (request) => {
-        return db.select({
-            id: appointments.id,
-            startsAt: appointments.startsAt,
-            status: appointments.status,
-        }).from(appointments).where(eq(appointments.customerId, request.user.sub))
-            .orderBy(appointments.startsAt);
+        const result = await appointmentService.findAll({ page: 1, limit: 50 }, request.user.sub);
+        return result.data;
     });
 }

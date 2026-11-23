@@ -1,19 +1,19 @@
 {
   "version": "7",
-  "dialect": "postgresql",
+  "dialect": "mysql",
   "entries": [
     {
       "idx": 0,
-      "version": "7",
-      "when": 1793659295057,
-      "tag": "0000_sad_prowler",
+      "version": "5",
+      "when": 1795386580635,
+      "tag": "0000_needy_khan",
       "breakpoints": true
     },
     {
       "idx": 1,
-      "version": "7",
-      "when": 1793659370500,
-      "tag": "0001_robust_darkhawk",
+      "version": "5",
+      "when": 1795394286826,
+      "tag": "0001_flimsy_sandman",
       "breakpoints": true
     }
   ]

@@ -1,9 +1,9 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
-import pg from 'pg';
+import { drizzle } from 'drizzle-orm/mysql2';
+import mysql from 'mysql2/promise';
 import * as schema from './schema.js';
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-pool.on('error', (error: Error) => console.error('Erro inesperado no pool PostgreSQL:', error));
+const connectionUri = process.env.DATABASE_URL ?? 'mysql://barbearia:barbearia_dev@localhost:3306/barbearia';
 
-export const db = drizzle(pool, { schema });
-export { pool };
+export const pool = mysql.createPool(connectionUri);
+
+export const db = drizzle(pool, { schema, mode: 'default' });

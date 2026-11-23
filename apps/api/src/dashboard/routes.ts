@@ -1,20 +1,20 @@
-import { sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { DashboardQuerySchema } from '@barbearia/contracts';
-import { db } from '../db/client.js';
+import { pool } from '../db/client.js';
 import { requireRoles } from '../auth/security.js';
+import type { RowDataPacket } from 'mysql2';
 
-type DailyMetricRow = Record<string, unknown> & {
+interface DailyMetricRow extends RowDataPacket {
     day: string;
-    appointments: number | string;
-    revenue: number | string;
-};
+    appointments: number;
+    revenue: number;
+}
 
-type ServiceMetricRow = Record<string, unknown> & {
+interface ServiceMetricRow extends RowDataPacket {
     service: string;
-    appointments: number | string;
-    revenue: number | string;
-};
+    appointments: number;
+    revenue: number;
+}
 
 export async function registerDashboardRoutes(app: FastifyInstance): Promise<void> {
     app.get('/dashboard/analytics', {
@@ -27,51 +27,56 @@ export async function registerDashboardRoutes(app: FastifyInstance): Promise<voi
         },
     }, async (request) => {
         const query = DashboardQuerySchema.parse(request.query);
-        const podeFiltrarEquipe = request.user.role === 'ADMIN' && query.staffId;
-        const filtroEquipe = request.user.role === 'EMPLOYEE'
-            ? sql`AND a.employee_id = ${request.user.sub}::uuid`
-            : podeFiltrarEquipe
-                ? sql`AND a.employee_id = ${query.staffId}::uuid`
-                : sql``;
+        const params: (number | string)[] = [query.period];
 
-        const dailyResult = await db.execute<DailyMetricRow>(sql`
-            SELECT
-                to_char((a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date, 'YYYY-MM-DD') AS day,
-                COUNT(DISTINCT a.id)::int AS appointments,
-                COALESCE(SUM(aps.unit_price), 0)::numeric AS revenue
+        let extraFilter = '';
+        if (request.user.role === 'EMPLOYEE') {
+            extraFilter = ' AND a.barber_id = ?';
+            params.push(request.user.sub);
+        } else if (request.user.role === 'ADMIN' && query.staffId) {
+            extraFilter = ' AND a.barber_id = ?';
+            params.push(query.staffId);
+        }
+
+        const [dailyRows] = await pool.query<DailyMetricRow[]>(
+            `SELECT
+                DATE_FORMAT(a.starts_at, '%Y-%m-%d') AS day,
+                COUNT(DISTINCT a.id) AS appointments,
+                COALESCE(SUM(aps.unit_price), 0) AS revenue
             FROM appointments a
             LEFT JOIN appointment_services aps ON aps.appointment_id = a.id
-            WHERE a.starts_at >= (((now() AT TIME ZONE 'America/Sao_Paulo')::date - (${query.period} - 1))::timestamp AT TIME ZONE 'America/Sao_Paulo')
-                AND a.starts_at < (((now() AT TIME ZONE 'America/Sao_Paulo')::date + 1)::timestamp AT TIME ZONE 'America/Sao_Paulo')
-                AND a.status IN ('SCHEDULED', 'COMPLETED')
-                ${filtroEquipe}
-            GROUP BY (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date
-            ORDER BY (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date
-        `);
+            WHERE a.starts_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+              AND a.status IN ('SCHEDULED', 'COMPLETED')
+              ${extraFilter}
+            GROUP BY DATE_FORMAT(a.starts_at, '%Y-%m-%d')
+            ORDER BY day ASC`,
+            params,
+        );
 
-        const serviceResult = await db.execute<ServiceMetricRow>(sql`
-            SELECT
+        const [serviceRows] = await pool.query<ServiceMetricRow[]>(
+            `SELECT
                 s.name AS service,
-                COUNT(DISTINCT a.id)::int AS appointments,
-                COALESCE(SUM(aps.unit_price), 0)::numeric AS revenue
+                COUNT(DISTINCT a.id) AS appointments,
+                COALESCE(SUM(aps.unit_price), 0) AS revenue
             FROM appointments a
             INNER JOIN appointment_services aps ON aps.appointment_id = a.id
             INNER JOIN services s ON s.id = aps.service_id
-            WHERE a.starts_at >= (((now() AT TIME ZONE 'America/Sao_Paulo')::date - (${query.period} - 1))::timestamp AT TIME ZONE 'America/Sao_Paulo')
-                AND a.starts_at < (((now() AT TIME ZONE 'America/Sao_Paulo')::date + 1)::timestamp AT TIME ZONE 'America/Sao_Paulo')
-                AND a.status IN ('SCHEDULED', 'COMPLETED')
-                ${filtroEquipe}
+            WHERE a.starts_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+              AND a.status IN ('SCHEDULED', 'COMPLETED')
+              ${extraFilter}
             GROUP BY s.id, s.name
             ORDER BY appointments DESC, revenue DESC
-            LIMIT 8
-        `);
+            LIMIT 8`,
+            params,
+        );
 
-        const daily = dailyResult.rows.map((row) => ({
+        const daily = (dailyRows || []).map((row) => ({
             day: String(row.day),
             appointments: Number(row.appointments),
             revenue: Number(row.revenue),
         }));
-        const services = serviceResult.rows.map((row) => ({
+
+        const services = (serviceRows || []).map((row) => ({
             service: String(row.service),
             appointments: Number(row.appointments),
             revenue: Number(row.revenue),
@@ -83,8 +88,8 @@ export async function registerDashboardRoutes(app: FastifyInstance): Promise<voi
             summary: {
                 appointments: daily.reduce((total, item) => total + item.appointments, 0),
                 projectedRevenue: daily.reduce((total, item) => total + item.revenue, 0),
-                bestDay: daily.reduce<DailyMetricRow | null>(
-                    (best, item) => !best || item.appointments > Number(best.appointments) ? item : best,
+                bestDay: daily.reduce<{ day: string; appointments: number; revenue: number } | null>(
+                    (best, item) => !best || item.appointments > best.appointments ? item : best,
                     null,
                 )?.day ?? null,
                 topService: services[0]?.service ?? null,
